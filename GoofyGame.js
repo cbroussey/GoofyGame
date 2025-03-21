@@ -10,7 +10,6 @@ class GoofyGame {
     #timeouts = [];
     #intervals = [];
 
-
     constructor(accessor = "gg") {
         if (typeof window[accessor] !== 'undefined') throw new Error("Accessor variable already taken");
         window[accessor] = this;
@@ -33,12 +32,8 @@ class GoofyGame {
     async #fetchHtml(url, type) {
         return fetch(url).then(function(response) {
             return response.text();
-        }).then((text) => {
-            if (type === "text/html") {
-                return new DOMParser().parseFromString(text, type);
-            } else if (type === "text/javascript") {
-                return this.#importScript(text);
-            }
+        }).then(async (text) => {
+            return new DOMParser().parseFromString(text, type);
         });
     }
 
@@ -48,7 +43,18 @@ class GoofyGame {
         this.#jsContent = [];
         this.#headContent = [];
         this.#originUrl = url;
-        this.#htmlContent = await this.#fetchHtml(url, type);   
+        if (type === "text/javascript") {
+            let j = document.createElement('script');
+            j.src = url;
+            this.#jsContent.push(j);
+        } else if (type === "text/css") {
+            let l = document.createElement('link');
+            l.rel = "stylesheet";
+            l.href = url;
+            this.#headContent.push(l);
+        } else {
+            this.#htmlContent = await this.#fetchHtml(url, type);   
+        }
     }
 
     #reference(element) {
@@ -70,7 +76,7 @@ class GoofyGame {
     }
 
     async apply(waitForLoad = false) {
-        if (!this.#htmlContent) {
+        if (!this.#htmlContent && !this.#jsContent.length) {
             throw new Error("No HTML content loaded");
         }
         if (this.#refs.length || this.#modules.length) {
