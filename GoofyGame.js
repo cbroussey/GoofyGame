@@ -135,8 +135,9 @@ class GoofyGame {
         document.dispatchEvent(new Event('DOMContentLoaded'));
     }
 
-    registerEventListener(event, callback) {
-        this.#eventListeners.push([event, callback]);
+    registerEventListener(target, event, callback) {
+        target.addEventListener(event, callback);
+        this.#eventListeners.push([target, event, callback]);
     }
 
     registerTimeout(ID) {
@@ -154,9 +155,10 @@ class GoofyGame {
 
         document.dispatchEvent(new Event('GoofyUnload'));
         this.#modules = [];
+        this.#jsContent = [];
 
-        this.#eventListeners.forEach(([event, callback]) => {
-            document.removeEventListener(event, callback);
+        this.#eventListeners.forEach(([target, event, callback]) => {
+            target.removeEventListener(event, callback);
         });
         this.#eventListeners = [];
 
@@ -178,6 +180,9 @@ class GoofyGame {
         this.#refs.forEach(e => {
             e.remove();
         });
+        this.#refs = [];
+
+        this.#headContent = [];
 
         Object.keys(window._).forEach(k => {
             delete window._[k];
