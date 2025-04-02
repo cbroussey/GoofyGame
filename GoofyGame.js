@@ -11,8 +11,10 @@ class GoofyGame {
     #intervals = [];
 
     constructor(accessor = "gg") {
-        if (typeof window[accessor] !== 'undefined') throw new Error("Accessor variable already taken");
-        window[accessor] = this;
+        if (accessor != '') {
+            if (typeof window[accessor] !== 'undefined') throw new Error("Accessor variable already taken");
+            window[accessor] = this;
+        }
         if (typeof window._ === 'undefined') window._ = {};
     }
 
@@ -59,11 +61,11 @@ class GoofyGame {
 
     #reference(element) {
         if (element.nodeName === "SCRIPT") {
-            if (!element.src || !Object.values(document.getElementsByTagName('script')).map(s => s.src).includes(element.src)) {
+            if (!element.src || !this.#jsContent.map(s => s.src).includes(element.src)) {
                 this.#jsContent.push(document.importNode(element, true));
             }
         } else if (["LINK", "STYLE", "META", "TITLE", "BASE"].includes(element.nodeName)) {
-            if (!element.src || !Object.values(document.getElementsByTagName('script')).map(l => l.src).includes(element.src)) {
+            if (!element.href || !this.#headContent.map(l => l.href).includes(element.href)) {
                 this.#headContent.push(document.importNode(element, true));
             }
         } else {
@@ -83,12 +85,23 @@ class GoofyGame {
             throw new Error("Unload content first");
         }
 
-        this.#htmlContent.head.childNodes.forEach(e => {
-            this.#reference(e);
-        })
-        this.#htmlContent.body.childNodes.forEach(e => {
-            this.#reference(e);
-        })
+        if (this.#htmlContent) {
+            this.#htmlContent.head.childNodes.forEach(e => {
+                this.#reference(e);
+            })
+            this.#htmlContent.body.childNodes.forEach(e => {
+                this.#reference(e);
+            })
+        }
+
+        this.#refs.forEach(r => {
+            if (!["#text", "#comment"].includes(r.nodeName)) {
+                Object.values(r.getElementsByTagName('SCRIPT')).forEach(s => {
+                    this.#reference(s);
+                    s.remove();
+                });
+            }
+        });
 
         let g = document.createElement('goofy');
         g.style.display = "none";
@@ -126,7 +139,7 @@ class GoofyGame {
                 let m = await import(script.src)
                 this.#modules.push(m);
             } else {
-                this.#importScript(script.innerText).then((m) => {
+                await this.#importScript(script.innerText).then((m) => {
                     this.#modules.push(m);
                 });
             }
@@ -141,17 +154,32 @@ class GoofyGame {
         document.dispatchEvent(new Event('DOMContentLoaded'));
     }
 
-    registerEventListener(target, event, callback) {
-        target.addEventListener(event, callback);
+    registerEventListener(target, event, callback, options = {}) {
+        target.addEventListener(event, callback, options);
         this.#eventListeners.push([target, event, callback]);
+    }
+
+    unregisterEventListener(target, event, callback) {
+        this.#eventListeners = this.#eventListeners.filter(([t, e, c]) => t !== target || e !== event || c !== callback);
+        target.removeEventListener(event, callback);
     }
 
     registerTimeout(ID) {
         this.#timeouts.push(ID);
     }
 
+    unregisterTimeout(ID) {
+        this.#timeouts = this.#timeouts.filter(e => e !== ID);
+        clearTimeout(ID);
+    }
+
     registerInterval(ID) {
         this.#intervals.push(ID);
+    }
+
+    unregisterInterval(ID) {
+        this.#intervals = this.#intervals.filter(e => e !== ID);
+        clearInterval(ID);
     }
 
     remove() {
@@ -159,24 +187,25 @@ class GoofyGame {
             throw new Error("Nothing was applied");
         }
 
-        document.dispatchEvent(new Event('GoofyUnload'));
         this.#modules = [];
         this.#jsContent = [];
+        
+        this.#timeouts.forEach(ID => {
+            clearTimeout(ID);
+        });
+        this.#timeouts = [];
+        
+        this.#intervals.forEach(ID => {
+            clearInterval(ID);
+        });
+        this.#intervals = [];
+        
+        document.dispatchEvent(new Event('GoofyUnload'));
 
         this.#eventListeners.forEach(([target, event, callback]) => {
             target.removeEventListener(event, callback);
         });
         this.#eventListeners = [];
-
-        this.#timeouts.forEach(ID => {
-            clearTimeout(ID);
-        });
-        this.#timeouts = [];
-
-        this.#intervals.forEach(ID => {
-            clearInterval(ID);
-        });
-        this.#intervals = [];
 
         this.#oldRefs.forEach(e => {
             e.remove();
